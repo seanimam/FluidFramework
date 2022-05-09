@@ -33,10 +33,6 @@ import {
     getLumberjackBasePropertiesFromRepoManagerParams,
 } from "../utils";
 
-function getDocumentStorageDirectory(repoManager: IRepositoryManager, documentId: string): string {
-    return `${repoManager.path}/${documentId}`;
-}
-
 async function getSummary(
     repoManager: IRepositoryManager,
     fileSystemManager: IFileSystemManager,
@@ -49,8 +45,8 @@ async function getSummary(
         try {
             const latestFullSummaryFromStorage = await retrieveLatestFullSummaryFromStorage(
                 fileSystemManager,
-                getDocumentStorageDirectory(repoManager, repoManagerParams.storageRoutingId.documentId),
-            );
+                repoManager,
+                repoManagerParams);
             if (latestFullSummaryFromStorage !== undefined) {
                 return latestFullSummaryFromStorage;
             }
@@ -115,7 +111,8 @@ async function createSummary(
                     // TODO: does this fail if file is open and still being written to from a previous request?
                     await persistLatestFullSummaryInStorage(
                         fileSystemManager,
-                        getDocumentStorageDirectory(repoManager, repoManagerParams.storageRoutingId.documentId),
+                        repoManager,
+                        repoManagerParams,
                         latestFullSummary,
                     );
                 } catch(error) {

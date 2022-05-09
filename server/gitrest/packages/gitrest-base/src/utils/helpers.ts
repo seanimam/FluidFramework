@@ -19,6 +19,7 @@ import {
     IExternalWriterConfig,
     IFileSystemManager,
     IRepoManagerParams,
+    IRepositoryManager,
     IStorageRoutingId,
 } from "./definitions";
 
@@ -78,12 +79,22 @@ export async function exists(
 
 const latestFullSummaryFilename = "latestFullSummary";
 const getLatestFullSummaryFilePath = (dir: string) => `${dir}/${latestFullSummaryFilename}`;
+function getDocumentStorageDirectory(repoManager: IRepositoryManager, documentId: string): string {
+    return `${repoManager.path}/${documentId}`;
+}
 
 export async function persistLatestFullSummaryInStorage(
     fileSystemManager: IFileSystemManager,
-    storageDirectoryPath: string,
+    repoManager: IRepositoryManager,
+    repoManagerParams: IRepoManagerParams,
     latestFullSummary: IWholeFlatSummary,
 ): Promise<void> {
+    const storageDirectoryPath = getDocumentStorageDirectory(
+        repoManager,
+        repoManagerParams.storageRoutingId.documentId);
+    Lumberjack.info(
+        `Persisting latest full summary from storage for path ${storageDirectoryPath}`,
+        getLumberjackBasePropertiesFromRepoManagerParams(repoManagerParams));
     const directoryExists = await exists(fileSystemManager, storageDirectoryPath);
     if (directoryExists === false) {
         await fileSystemManager.promises.mkdir(storageDirectoryPath, { recursive: true });
@@ -98,12 +109,18 @@ export async function persistLatestFullSummaryInStorage(
 
 export async function retrieveLatestFullSummaryFromStorage(
     fileSystemManager: IFileSystemManager,
-    storageDirectoryPath: string,
+    repoManager: IRepositoryManager,
+    repoManagerParams: IRepoManagerParams,
 ): Promise<IWholeFlatSummary | undefined> {
     try {
-        const summaryFile = await fileSystemManager.promises.readFile(
-            getLatestFullSummaryFilePath(storageDirectoryPath),
-        );
+        const summaryFilePath = getLatestFullSummaryFilePath(
+            getDocumentStorageDirectory(
+                repoManager,
+                repoManagerParams.storageRoutingId.documentId));
+        Lumberjack.info(
+            `Retrieving latest full summary from storage for path ${summaryFilePath}`,
+            getLumberjackBasePropertiesFromRepoManagerParams(repoManagerParams));
+        const summaryFile = await fileSystemManager.promises.readFile(summaryFilePath);
         // TODO: This will be converted back to a JSON string for the HTTP response
         const summary: IWholeFlatSummary = JSON.parse(summaryFile.toString());
         return summary;
