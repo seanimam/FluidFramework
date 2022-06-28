@@ -12,7 +12,6 @@ import {
 import { v4 as uuid } from "uuid";
 import {
     hasErrorInstanceId,
-    hasTelemetryPropFunctions,
     IFluidErrorBase,
     isFluidError,
     isValidLegacyError,
@@ -139,6 +138,7 @@ export function normalizeError(
         ...annotations.props,
     });
 
+   
     return fluidError;
 }
 
@@ -331,6 +331,9 @@ export const getCircularReplacer = () => {
  * PLEASE take care to avoid setting sensitive data on this object without proper tagging!
  */
 export class LoggingError extends Error implements ILoggingError, Omit<IFluidErrorBase, "errorType"> {
+    private static readonly symbolRegistrykey = "Fluid-LoggingError-v1";
+    get symbol() { return Symbol.for(LoggingError.symbolRegistrykey) }
+
     private _errorInstanceId = uuid();
     get errorInstanceId() { return this._errorInstanceId; }
     overwriteErrorInstanceId(id: string) { this._errorInstanceId = id; }
@@ -366,9 +369,14 @@ export class LoggingError extends Error implements ILoggingError, Omit<IFluidErr
      * @param object - any object
      * @returns - true if the object is an instance of a LoggingError, false if not.
      */
-    public static typeCheck(object: any): object is LoggingError {
-        return hasTelemetryPropFunctions(object)
-            && typeof object?.errorInstanceId === "string";
+    public static typeCheck(value: unknown): value is LoggingError {    
+        if (typeof (value) === "object" && value !== null) {
+            const valAsLoggingError = value as LoggingError;
+            if (valAsLoggingError.symbol !== undefined) {
+                return valAsLoggingError.symbol === Symbol.for(LoggingError.symbolRegistrykey);
+            }
+        }
+        return false;
     }
 
     /**
@@ -417,7 +425,7 @@ export class NormalizedExternalError extends LoggingError {
     /**
      * Determines if a given object is an instance of a NormalizedExternalError
      * @param object - any object
-     * @returns - true if the object is an instance of a NormalizedExternalError, false if not.
+     * @returns -true if the object is an instance of a NormalizedExternalError, false if not.
      */
     public static typeCheck(object: any): object is NormalizedExternalError {
         return object.errorType !== undefined
