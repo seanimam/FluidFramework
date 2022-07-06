@@ -138,7 +138,6 @@ export function normalizeError(
         ...annotations.props,
     });
 
-   
     return fluidError;
 }
 
@@ -332,7 +331,7 @@ export const getCircularReplacer = () => {
  */
 export class LoggingError extends Error implements ILoggingError, Omit<IFluidErrorBase, "errorType"> {
     private static readonly symbolRegistrykey = "Fluid-LoggingError-v1";
-    get symbol() { return Symbol.for(LoggingError.symbolRegistrykey) }
+    get symbol() { return Symbol.for(LoggingError.symbolRegistrykey); }
 
     private _errorInstanceId = uuid();
     get errorInstanceId() { return this._errorInstanceId; }
@@ -369,7 +368,7 @@ export class LoggingError extends Error implements ILoggingError, Omit<IFluidErr
      * @param object - any object
      * @returns - true if the object is an instance of a LoggingError, false if not.
      */
-    public static typeCheck(value: unknown): value is LoggingError {    
+    public static typeCheck(value: unknown): value is LoggingError {
         if (typeof (value) === "object" && value !== null) {
             const valAsLoggingError = value as LoggingError;
             if (valAsLoggingError.symbol !== undefined) {

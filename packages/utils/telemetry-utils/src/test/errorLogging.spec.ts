@@ -323,7 +323,7 @@ describe("Error Logging", () => {
             const props = loggingError.getTelemetryProperties();
             delete props.fluidErrorCode; // It's on there for back compat, not trying to test it here
             const { message, stack, errorInstanceId } = loggingError;
-            assert.deepStrictEqual(props, { message, stack, errorInstanceId}, "addTelemetryProperties should not overwrite existing props");
+            assert.deepStrictEqual(props, { message, stack, errorInstanceId }, "addTelemetryProperties should not overwrite existing props");
         });
         it("addTelemetryProperties - Does not overwrite existing telemetry props", () => {
             const loggingError = new LoggingError("myMessage", { p1: 1 });
@@ -450,14 +450,18 @@ const annotationCases: Record<string, IFluidErrorAnnotations> = {
 
 describe("normalizeError", () => {
     describe("NormalizedExternalError", () => {
-        it("typeCheck - correctly type checks an instance of NormalizedExternalError", () => {
+        it("typeCheck() - correctly type checks an instance of NormalizedExternalError", () => {
             const normalizedError = new NormalizedExternalError({ message: "m1" });
             const loggingError = new LoggingError("myLoggingError");
             const basicExternalError = createExternalError("external");
-            assert.strictEqual(NormalizedExternalError.typeCheck(normalizedError), true);
-            assert.strictEqual(NormalizedExternalError.typeCheck(loggingError), false);
-            assert.strictEqual(NormalizedExternalError.typeCheck(basicExternalError), false);
-            assert.strictEqual(NormalizedExternalError.typeCheck(normalizeError(basicExternalError)), true);
+            assert.strictEqual(NormalizedExternalError.typeCheck(normalizedError), true,
+             "NormalizedExternalError IS of type NormalizedExternalError");
+            assert.strictEqual(NormalizedExternalError.typeCheck(loggingError), false,
+            "LoggingError is NOT of type NormalizedExternalError");
+            assert.strictEqual(NormalizedExternalError.typeCheck(basicExternalError), false,
+            "external error is NOT of type NormalizedExternalError");
+            assert.strictEqual(NormalizedExternalError.typeCheck(normalizeError(basicExternalError)), true,
+            "LoggingError is NOT of type NormalizedExternalError");
         });
     });
 
