@@ -13,6 +13,7 @@ import { initializeForest, TreeNavigationResult } from "../../../forest";
 /* eslint-disable-next-line import/no-internal-modules */
 import { cursorToJsonObject, JsonCursor } from "../../../domains/json/jsonCursor";
 import { generateCanada } from "./json";
+import { generateTwitterJsonBySize } from "./twitterJson";
 
 // Helper for creating a PRNG instance that produces a uniform distribution in the range [0..1).
 function makeRng(seed: string) {
@@ -107,9 +108,16 @@ function bench(name: string, getJson: () => any) {
     }
 }
 
-// Make a test dataset, but only make it large in performance testing mode.
-const canada = generateCanada(makeRng("canada"), !isInPerformanceTestingMode);
-
 describe("ITreeCursor", () => {
-    bench("canada", () => canada);
+    // Make a test dataset, but only make it large in performance testing mode.
+    if (isInPerformanceTestingMode) {
+        const canada = generateCanada(makeRng("canada"), false);
+        bench("canada", () => canada);
+        bench("twitter 10MB without unicode", () => generateTwitterJsonBySize(10000, false));
+        bench("twitter 10MB with unicode", () => generateTwitterJsonBySize(10000, true));
+    } else {
+        bench("canada", () => generateCanada(makeRng("canada"), true));
+        bench("twitter 1MB without unicode", () => generateTwitterJsonBySize(1000, false));
+        bench("twitter 1MB with unicode", () => generateTwitterJsonBySize(1000, true));
+    }
 });
