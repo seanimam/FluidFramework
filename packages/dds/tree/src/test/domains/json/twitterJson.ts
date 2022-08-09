@@ -175,7 +175,7 @@ export interface TwitterJson {
  * @param includeUnicode - true to include unicode in any strings within the json
  * @returns TwitterJson
  */
-export function generateTwitterJsonBySize(sizeInKb: number, includeUnicode: boolean) {
+export function generateTwitterJsonByKilobytes(sizeInKb: number, includeUnicode: boolean) {
     const twitterJson: TwitterJson = {
         statuses: [],
         search_metadata: {
@@ -191,17 +191,16 @@ export function generateTwitterJsonBySize(sizeInKb: number, includeUnicode: bool
         },
     };
 
-    let jsonSizeInKb = getSizeInBytes(twitterJson) / 1000;
-
-    while (jsonSizeInKb <= sizeInKb) {
+    let currentJsonSizeInKb = getSizeInBytes(twitterJson) / 1000;
+    while (currentJsonSizeInKb < sizeInKb) {
         const twitterStatus = generateTwitterStatus("standard", includeUnicode);
-        // Ensure that the next status does not make the json go over the maxSizeInKb limit
-        if (jsonSizeInKb + getSizeInBytes(twitterStatus) <= sizeInKb) {
-            twitterJson.statuses.push(twitterStatus);
-            jsonSizeInKb += getSizeInBytes(twitterStatus) / 1000;
-        } else {
+        // Ensure that the next status does not make the json go over the sizeInKb limit
+        const nextStatusSizeInKb = getSizeInBytes(twitterStatus) / 1000;
+        if (currentJsonSizeInKb + nextStatusSizeInKb > sizeInKb) {
             break;
         }
+        twitterJson.statuses.push(twitterStatus);
+        currentJsonSizeInKb += nextStatusSizeInKb;
     }
 
     return twitterJson;

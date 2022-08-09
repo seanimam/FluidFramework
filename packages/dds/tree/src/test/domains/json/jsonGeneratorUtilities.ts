@@ -18,7 +18,7 @@ export function getRandomString(numbersOnly: boolean, length: number) {
 // :~:text=You%20can%20do%20this%20%3A,(0x30FF%2D0x30A0%2B1))%3B
 export function getRandomUnicodeStringInRange(min: number, max: number) {
     let stringLength = min;
-    if (min !== max) {
+    if (min < max) {
         stringLength = getRandomNumberInRange(min, max);
     }
     let string = "";
@@ -43,10 +43,8 @@ export function getRandomBoolean() {
 export function getSizeInBytes(obj: unknown) {
     let str = null;
     if (typeof obj === "string") {
-        // If obj is a string, then use it
         str = obj;
     } else {
-        // Else, make obj into a string
         str = JSON.stringify(obj);
     }
     // Get the length of the Uint8Array

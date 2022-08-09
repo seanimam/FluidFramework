@@ -13,7 +13,7 @@ import { initializeForest, TreeNavigationResult } from "../../../forest";
 /* eslint-disable-next-line import/no-internal-modules */
 import { cursorToJsonObject, JsonCursor } from "../../../domains/json/jsonCursor";
 import { generateCanada } from "./json";
-import { generateTwitterJsonBySize } from "./twitterJson";
+import { generateTwitterJsonByKilobytes } from "./twitterJson";
 
 // Helper for creating a PRNG instance that produces a uniform distribution in the range [0..1).
 function makeRng(seed: string) {
@@ -113,11 +113,11 @@ describe("ITreeCursor", () => {
     if (isInPerformanceTestingMode) {
         const canada = generateCanada(makeRng("canada"), false);
         bench("canada", () => canada);
-        bench("twitter 10MB without unicode", () => generateTwitterJsonBySize(10000, false));
-        bench("twitter 10MB with unicode", () => generateTwitterJsonBySize(10000, true));
+        // performance variant of canada is 2.15MB, so twitter is generated to match the size
+        bench("twitter 2.5MB with unicode", () => generateTwitterJsonByKilobytes(2150, true));
     } else {
         bench("canada", () => generateCanada(makeRng("canada"), true));
-        bench("twitter 1MB without unicode", () => generateTwitterJsonBySize(1000, false));
-        bench("twitter 1MB with unicode", () => generateTwitterJsonBySize(1000, true));
+        // The original twitter.json benchmark is about 466KB.
+        bench("twitter 466KB with unicode", () => generateTwitterJsonByKilobytes(466, false));
     }
 });
