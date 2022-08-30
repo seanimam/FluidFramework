@@ -15,6 +15,7 @@ import { defaultSchemaPolicy } from "../../../feature-libraries";
 import { SchemaData, StoredSchemaRepository } from "../../../schema-stored";
 import { generateCanada } from "./canada";
 import { generateTwitterJsonByByteSize } from "./twitter";
+import { generateCitmJson } from "./citmCatalog";
 
 // IIRC, extracting this helper from clone() encourages V8 to inline the terminal case at
 // the leaves, but this should be verified.
@@ -116,6 +117,7 @@ const canada = generateCanada(
 // The original benchmark twitter.json is 466906 Bytes according to getSizeInBytes.
 const twitter = generateTwitterJsonByByteSize(isInPerformanceTestingMode ? 2500000 : 466906, true);
 describe("ITreeCursor", () => {
+    const citm = generateCitmJson();
     bench("canada", () => canada);
     bench("twitter", () => twitter);
 });
