@@ -1,4 +1,4 @@
-import { makeRandom } from "@fluid-internal/stochastic-test-utils";
+import { IRandom, makeRandom } from "@fluid-internal/stochastic-test-utils";
 
 /**
 * This file contains logic to generate a JSON file that is statistically similar to the well-known
@@ -201,7 +201,7 @@ export namespace CitmCatalog {
 
 export function generateCitmJson(random = makeRandom()) {
     const baseIdNumber = random.integer(100000000, 300000000);
-    let currentIdNumber = baseIdNumber;
+    let idNumberCounter = baseIdNumber;
 
     // 1. Create areaNames property
     const areaNames: Record<string, string> = {};
@@ -225,14 +225,14 @@ export function generateCitmJson(random = makeRandom()) {
         "Zone physique secrète",
     ];
     for (const value of areaNameValues) {
-        currentIdNumber += 1;
-        areaNames[`${currentIdNumber}`] = value;
+        idNumberCounter += 1;
+        areaNames[`${idNumberCounter}`] = value;
     }
 
     // 2. create audienceSubCategoryNames property
     // (In the original JSON this only had one key value pair.)
-    currentIdNumber += 1;
-    const audienceSubCategoryNames = { [`${currentIdNumber}`]: "Abonné" };
+    idNumberCounter += 1;
+    const audienceSubCategoryNames = { [`${idNumberCounter}`]: "Abonné" };
 
     // 3. Create seatCategoryNames property
     const seatCategoryNames: Record<string, string> = {};
@@ -299,10 +299,10 @@ export function generateCitmJson(random = makeRandom()) {
         "1ère catégorie",
         "catétgorie unique",
     ];
-    currentIdNumber += 1; // incremented once to avoid using the last key value.
+    idNumberCounter += 1; // incremented once to avoid using the last key value.
     for (const value of seatCategoryNameValues) {
-        currentIdNumber += 1;
-        seatCategoryNames[`${currentIdNumber}`] = value;
+        idNumberCounter += 1;
+        seatCategoryNames[`${idNumberCounter}`] = value;
     }
 
     // 4. create subTopicNames property
@@ -328,10 +328,10 @@ export function generateCitmJson(random = makeRandom()) {
         "Voix",
         "famille",
     ];
-    currentIdNumber += 1; // incremented once to avoid using the last key value.
+    idNumberCounter += 1; // incremented once to avoid using the last key value.
     for (const value of subTopicNameValues) {
-        currentIdNumber += 1;
-        subTopicNames[`${currentIdNumber}`] = value;
+        idNumberCounter += 1;
+        subTopicNames[`${idNumberCounter}`] = value;
     }
 
     // 5. create topicNames property
@@ -342,10 +342,10 @@ export function generateCitmJson(random = makeRandom()) {
         "Genre",
         "Formations musicales",
     ];
-    currentIdNumber += 1; // incremented once to avoid using the last key value.
+    idNumberCounter += 1; // incremented once to avoid using the last key value.
     for (const value of topicNameValues) {
-        currentIdNumber += 1;
-        topicNames[`${currentIdNumber}`] = value;
+        idNumberCounter += 1;
+        topicNames[`${idNumberCounter}`] = value;
     }
 
     // 6. Create topicSubTopics property
@@ -383,119 +383,17 @@ export function generateCitmJson(random = makeRandom()) {
 
     // 10. Create each event object
     const events: Record<string, CitmCatalog.Event> = {};
-    currentIdNumber += 1; // incremented once to avoid using the last key value.
-
-    const availableTopicIds = Object.keys(topicNames);
-    for (let i = 0; i < 10; i++) {
-        // Semi-Randomly select topic Id's
-        const eventTopicIdSet = new Set<number>();
-        const numTopicsToInclude = random.integer(1, availableTopicIds.length < 3 ? availableTopicIds.length : 3);
-        for (let j = 0; j < numTopicsToInclude; j++) {
-            let topicIdIndex = random.integer(0, availableTopicIds.length - 1);
-            let topicIdToAdd = Number.parseInt(availableTopicIds[topicIdIndex], 10);
-            // If random selection picks a previously used topicId
-            // then we increment forwards once until an unencountered id appears
-            while (eventTopicIdSet.has(topicIdToAdd)) {
-                topicIdIndex += 1;
-                if (topicIdIndex > availableTopicIds.length - 1) {
-                    topicIdIndex = topicIdIndex % availableTopicIds.length;
-                }
-                topicIdToAdd = Number.parseInt(availableTopicIds[topicIdIndex], 10);
-            }
-            eventTopicIdSet.add(topicIdToAdd);
-        }
-
-        // Semi-Randomly select subTopic Id's under each event topic
-        const eventSubTopicIdSet = new Set<number>();
-        eventTopicIdSet.forEach((topicId) => {
-            const topicSubTopicIds = topicSubTopics[`${topicId}`];
-            const numSubTopicsToInclude = random.integer(1, topicSubTopicIds.length > 5 ? 5 : topicSubTopicIds.length);
-            for (let x = 0; x < numSubTopicsToInclude; x++) {
-                let subTopicIndex = random.integer(0, topicSubTopicIds.length - 1);
-                let subTopicIdToAdd = topicSubTopicIds[subTopicIndex];
-                while (eventSubTopicIdSet.has(subTopicIdToAdd)) {
-                    subTopicIndex += 1;
-                    if (subTopicIndex > topicSubTopicIds.length - 1) {
-                        subTopicIndex = subTopicIndex % topicSubTopicIds.length;
-                    }
-                    subTopicIdToAdd = topicSubTopicIds[subTopicIndex];
-                }
-                eventSubTopicIdSet.add(subTopicIdToAdd);
-            }
-        });
-
-        events[`${currentIdNumber}`] = {
-            description: null,
-            id: currentIdNumber,
-            logo: null,
-            name: "",
-            subjectCode: null,
-            subtitle: null,
-            topicIds: Array.from(eventTopicIdSet),
-            subTopicIds: Array.from(eventSubTopicIdSet),
-        };
-
-        currentIdNumber += 1;
-    }
+    idNumberCounter += 1; // incremented once to avoid using the last key value.
 
     // 11. Create performance objects
     const performances: CitmCatalog.Performance[] = [];
-    currentIdNumber += 1; // incremented once to avoid using the last key value.
-    Object.keys(events).forEach((eventId) => {
-        const event = events[eventId];
-        // 11a. create prices object
-        const prices = [];
-        const numPricesToAdd = random.integer(1, 5);
-        const usedSeatCategoryIds = new Set<string>();
-        const availableSeatCategoryIds = Object.keys(seatCategoryNames);
-        for (let i = 0; i < numPricesToAdd; i++) {
-            let seatCategoryIdIndex = random.integer(0, availableSeatCategoryIds.length - 1);
-            let seatCategoryId = availableSeatCategoryIds[seatCategoryIdIndex];
-            while (usedSeatCategoryIds.has(seatCategoryId)) {
-                seatCategoryIdIndex += 1;
-                if (seatCategoryIdIndex > availableSeatCategoryIds.length - 1) {
-                    seatCategoryIdIndex = seatCategoryIdIndex % availableSeatCategoryIds.length;
-                }
-                seatCategoryId = availableSeatCategoryIds[seatCategoryIdIndex];
-            }
-            prices.push({
-                amount: random.integer(10000, 200000),
-                audienceSubCategoryId: Number.parseInt(Object.keys(audienceSubCategoryNames)[0], 10),
-                seatCategoryId: Number.parseInt(seatCategoryId, 10),
-            });
-        }
-        // 11b. create seatCategories object
-        const seatCategories: { areas: { areaId: number; blockIds: never[]; }[]; seatCategoryId: number; }[] = [];
-        const availableAreaIds = Object.keys(areaNames);
-        prices.forEach((priceObject) => {
-            const numAreaIdsToAdd = random.integer(2, availableAreaIds.length);
-            const areas = [];
-            for (let i = 0; i < numAreaIdsToAdd; i++) {
-                areas.push({
-                    areaId: Number.parseInt(availableAreaIds[i], 10),
-                    blockIds: [],
-                });
-            }
-            seatCategories.push({
-                areas,
-                seatCategoryId: priceObject.seatCategoryId,
-            });
-        });
-        performances.push(
-            {
-                eventId: event.id,
-                id: currentIdNumber,
-                logo: event.logo,
-                name: null,
-                prices,
-                seatCategories,
-                seatMapImage: null,
-                start: 1378922400000,
-                venueCode: "PLEYEL_PLEYEL",
-            },
-        );
-        currentIdNumber += 1;
-    });
+
+    const eventAndPerformance = generateEventAndPerformance(random, idNumberCounter, Object.keys(topicNames),
+         topicSubTopics, seatCategoryNames, audienceSubCategoryNames, areaNames);
+
+    events[`${eventAndPerformance.event.id}`] = eventAndPerformance.event;
+    performances.push(eventAndPerformance.performance);
+    idNumberCounter = eventAndPerformance.idNumberCounter;
 
     return {
         areaNames,
@@ -509,6 +407,119 @@ export function generateCitmJson(random = makeRandom()) {
         topicNames,
         topicSubTopics,
         venueNames,
+    };
+}
+
+function generateEventAndPerformance(random: IRandom, idNumberCounter: number, availableTopicIds: string[],
+    topicSubTopics: Record<string, number[]>, seatCategoryNames: Record<string, string>,
+    audienceSubCategoryNames: Record<string, string>, areaNames: Record<string, string>) {
+    // Semi-Randomly select topic Id's
+    const eventTopicIdSet = new Set<number>();
+    const numTopicsToInclude = random.integer(1, availableTopicIds.length < 3 ? availableTopicIds.length : 3);
+    for (let j = 0; j < numTopicsToInclude; j++) {
+        let topicIdIndex = random.integer(0, availableTopicIds.length - 1);
+        let topicIdToAdd = Number.parseInt(availableTopicIds[topicIdIndex], 10);
+        // If random selection picks a previously used topicId
+        // then we increment forwards once until an unencountered id appears
+        while (eventTopicIdSet.has(topicIdToAdd)) {
+            topicIdIndex += 1;
+            if (topicIdIndex > availableTopicIds.length - 1) {
+                topicIdIndex = topicIdIndex % availableTopicIds.length;
+            }
+            topicIdToAdd = Number.parseInt(availableTopicIds[topicIdIndex], 10);
+        }
+        eventTopicIdSet.add(topicIdToAdd);
+    }
+
+    // Semi-Randomly select subTopic Id's under each event topic
+    const eventSubTopicIdSet = new Set<number>();
+    eventTopicIdSet.forEach((topicId) => {
+        const topicSubTopicIds = topicSubTopics[`${topicId}`];
+        const numSubTopicsToInclude = random.integer(1, topicSubTopicIds.length > 5 ? 5 : topicSubTopicIds.length);
+        for (let x = 0; x < numSubTopicsToInclude; x++) {
+            let subTopicIndex = random.integer(0, topicSubTopicIds.length - 1);
+            let subTopicIdToAdd = topicSubTopicIds[subTopicIndex];
+            while (eventSubTopicIdSet.has(subTopicIdToAdd)) {
+                subTopicIndex += 1;
+                if (subTopicIndex > topicSubTopicIds.length - 1) {
+                    subTopicIndex = subTopicIndex % topicSubTopicIds.length;
+                }
+                subTopicIdToAdd = topicSubTopicIds[subTopicIndex];
+            }
+            eventSubTopicIdSet.add(subTopicIdToAdd);
+        }
+    });
+
+    const event: CitmCatalog.Event = {
+        description: null,
+        id: idNumberCounter,
+        logo: null,
+        name: "",
+        subjectCode: null,
+        subtitle: null,
+        topicIds: Array.from(eventTopicIdSet),
+        subTopicIds: Array.from(eventSubTopicIdSet),
+    };
+
+    // eslint-disable-next-line no-param-reassign
+    idNumberCounter += 1;
+
+    // 11a. create prices object
+    const prices = [];
+    const numPricesToAdd = random.integer(1, 5);
+    const usedSeatCategoryIds = new Set<string>();
+    const availableSeatCategoryIds = Object.keys(seatCategoryNames);
+    for (let i = 0; i < numPricesToAdd; i++) {
+        let seatCategoryIdIndex = random.integer(0, availableSeatCategoryIds.length - 1);
+        let seatCategoryId = availableSeatCategoryIds[seatCategoryIdIndex];
+        while (usedSeatCategoryIds.has(seatCategoryId)) {
+            seatCategoryIdIndex += 1;
+            if (seatCategoryIdIndex > availableSeatCategoryIds.length - 1) {
+                seatCategoryIdIndex = seatCategoryIdIndex % availableSeatCategoryIds.length;
+            }
+            seatCategoryId = availableSeatCategoryIds[seatCategoryIdIndex];
+        }
+        prices.push({
+            amount: random.integer(10000, 200000),
+            audienceSubCategoryId: Number.parseInt(Object.keys(audienceSubCategoryNames)[0], 10),
+            seatCategoryId: Number.parseInt(seatCategoryId, 10),
+        });
+    }
+    // 11b. create seatCategories object
+    const seatCategories: { areas: { areaId: number; blockIds: never[]; }[]; seatCategoryId: number; }[] = [];
+    const availableAreaIds = Object.keys(areaNames);
+    prices.forEach((priceObject) => {
+        const numAreaIdsToAdd = random.integer(2, availableAreaIds.length);
+        const areas = [];
+        for (let i = 0; i < numAreaIdsToAdd; i++) {
+            areas.push({
+                areaId: Number.parseInt(availableAreaIds[i], 10),
+                blockIds: [],
+            });
+        }
+        seatCategories.push({
+            areas,
+            seatCategoryId: priceObject.seatCategoryId,
+        });
+    });
+    const performance: CitmCatalog.Performance = {
+            eventId: event.id,
+            id: idNumberCounter,
+            logo: event.logo,
+            name: null,
+            prices,
+            seatCategories,
+            seatMapImage: null,
+            start: 1378922400000,
+            venueCode: "PLEYEL_PLEYEL",
+        };
+    // eslint-disable-next-line no-param-reassign
+    idNumberCounter += 1;
+
+    return {
+        event,
+        performance,
+        idNumberCounter,
     };
 }
 
