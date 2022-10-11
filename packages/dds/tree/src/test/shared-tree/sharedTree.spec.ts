@@ -10,14 +10,17 @@ import {
     isUnwrappedNode,
     valueSymbol,
     getSchemaString,
+    jsonableTreeFromCursor,
+    EditableTree,
 } from "../../feature-libraries";
 import { brand } from "../../util";
-import { detachedFieldAsKey, rootFieldKey, symbolFromKey, TreeValue } from "../../tree";
+import { detachedFieldAsKey, JsonableTree, rootFieldKey, symbolFromKey, TreeValue } from "../../tree";
 import { TreeNavigationResult } from "../../forest";
-import { TestTreeProvider } from "../utils";
+import { ITestTreeProvider, TestTreeProvider } from "../utils";
 import { ISharedTree } from "../../shared-tree";
 import { TransactionResult } from "../../checkout";
 import { fieldSchema, GlobalFieldKey, namedTreeSchema, SchemaData } from "../../schema-stored";
+import { JsonCursor } from "../../domains";
 
 const globalFieldKey: GlobalFieldKey = brand("globalFieldKey");
 const globalFieldKeySymbol = symbolFromKey(globalFieldKey);
@@ -277,7 +280,78 @@ describe("SharedTree", () => {
         // Check that the edit is reflected in the EditableTree after the transaction.
         assert.equal(editable[valueSymbol], 2);
     });
+
+    it("can create tree with and json", async () => {
+        const tree = createSharedTree
+    })
 });
+
+const testData = {
+    name: "sean",
+    age: 27
+}
+
+async function createSharedTree(schemaData: SchemaData, data?: JsonableTree, json?: any):
+    Promise<readonly [ITestTreeProvider, readonly ISharedTree[]]> {
+    const provider = await TestTreeProvider.create(1);
+    assert(provider.trees[0].isAttached());
+    provider.trees[0].storedSchema.update(schemaData);
+
+    // Inserts the JsonableTree as the root node of the newly created shared tree.
+    // if (data) {
+    //     const cursor = singleTextCursor(data);
+    //     // Apply an edit to the tree which inserts a node with a value
+    //     provider.trees[0].runTransaction((forest, editor) => {
+    //         editor.insert(
+    //             {
+    //                 parent: undefined,
+    //                 parentField: detachedFieldAsKey(forest.rootField),
+    //                 parentIndex: 0,
+    //             },
+    //             cursor,
+    //         );
+    //         return TransactionResult.Apply;
+    //     });
+    // }
+    if (json) {
+        const jsonCursor = new JsonCursor(json);
+        const encodedTree = jsonableTreeFromCursor(jsonCursor);
+        // Apply an edit to the tree which inserts a node with a value
+        provider.trees[0].runTransaction((forest, editor) => {
+            editor.insert(
+                {
+                    parent: undefined,
+                    parentField: detachedFieldAsKey(forest.rootField),
+                    parentIndex: 0,
+                },
+                jsonCursor,
+            );
+            return TransactionResult.Apply;
+        });
+    }
+
+    // if (json) {
+    //     const jsonCursor = new JsonCursor(json);
+    //     const encodedTree = jsonableTreeFromCursor(jsonCursor);
+    //     const textCursor = singleTextCursor(encodedTree);
+    //     // Apply an edit to the tree which inserts a node with a value
+    //     provider.trees[0].runTransaction((forest, editor) => {
+    //         editor.insert(
+    //             {
+    //                 parent: undefined,
+    //                 parentField: detachedFieldAsKey(forest.rootField),
+    //                 parentIndex: 0,
+    //             },
+    //             textCursor,
+    //         );
+    //         return TransactionResult.Apply;
+    //     });
+    // }
+
+
+    await provider.ensureSynchronized();
+    return [provider, provider.trees];
+}
 
 const rootFieldSchema = fieldSchema(FieldKinds.value);
 const globalFieldSchema = fieldSchema(FieldKinds.value);
