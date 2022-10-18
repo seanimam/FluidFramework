@@ -10,17 +10,18 @@ import {
     isUnwrappedNode,
     valueSymbol,
     getSchemaString,
-    jsonableTreeFromCursor,
-    EditableTree,
 } from "../../feature-libraries";
 import { brand } from "../../util";
-import { detachedFieldAsKey, JsonableTree, rootFieldKey, symbolFromKey, TreeValue } from "../../tree";
+import { detachedFieldAsKey, EmptyKey, FieldKey, JsonableTree, rootFieldKey, symbolFromKey, TreeValue } from "../../tree";
 import { TreeNavigationResult } from "../../forest";
 import { ITestTreeProvider, TestTreeProvider } from "../utils";
 import { ISharedTree } from "../../shared-tree";
 import { TransactionResult } from "../../checkout";
 import { fieldSchema, GlobalFieldKey, namedTreeSchema, SchemaData } from "../../schema-stored";
-import { JsonCursor } from "../../domains";
+import { bubbleBenchAppStateJsonTree, bubbleBenchAppStateSchemaData, iBubbleSchema, int32Schema } from "./bubbleBenchAppStateSchema";
+import { Bubble } from "./bubbleBench/Bubble";
+import { SharedTreeHelper } from "./bubbleBench/SharedTreeNodeHelper";
+import { Client } from "./bubbleBench/Client";
 
 const globalFieldKey: GlobalFieldKey = brand("globalFieldKey");
 const globalFieldKeySymbol = symbolFromKey(globalFieldKey);
@@ -281,132 +282,432 @@ describe("SharedTree", () => {
         assert.equal(editable[valueSymbol], 2);
     });
 
-    it("can create tree with and json", async () => {
-        const tree = createSharedTree
-    })
-});
+    it("bubbleBench tree creation", async () => {
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        const cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        const cursorResult = tree.forest.tryMoveCursorTo(destination, cursor);
+        assert.equal(cursorResult, TreeNavigationResult.Ok);
 
-const testData = {
-    name: "sean",
-    age: 27
-}
+        const widthFieldKey: FieldKey = brand("width");
+        cursor.down(widthFieldKey, 0);
+        assert.equal(cursor.value as number, 1920);
 
-async function createSharedTree(schemaData: SchemaData, data?: JsonableTree, json?: any):
-    Promise<readonly [ITestTreeProvider, readonly ISharedTree[]]> {
-    const provider = await TestTreeProvider.create(1);
-    assert(provider.trees[0].isAttached());
-    provider.trees[0].storedSchema.update(schemaData);
+        // get an anchor to the current node 'width'
+        const widthAnchor = cursor.buildAnchor();
 
-    // Inserts the JsonableTree as the root node of the newly created shared tree.
-    // if (data) {
-    //     const cursor = singleTextCursor(data);
-    //     // Apply an edit to the tree which inserts a node with a value
-    //     provider.trees[0].runTransaction((forest, editor) => {
-    //         editor.insert(
-    //             {
-    //                 parent: undefined,
-    //                 parentField: detachedFieldAsKey(forest.rootField),
-    //                 parentIndex: 0,
-    //             },
-    //             cursor,
-    //         );
-    //         return TransactionResult.Apply;
-    //     });
-    // }
-    if (json) {
-        const jsonCursor = new JsonCursor(json);
-        const encodedTree = jsonableTreeFromCursor(jsonCursor);
+        // Perform an edit
+        tree.runTransaction((forest, editor) => {
+            const path = tree.locate(widthAnchor) ?? fail("anchor should exist");
+            tree.context.prepareForEdit();
+            cursor.free();
+            editor.setValue(path, 1000);
+            return TransactionResult.Apply;
+        });
+        await provider.ensureSynchronized();
+
+        const cursor2 = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(destination, cursor2);
+        cursor2.down(widthFieldKey, 0);
+        assert.equal(cursor2.value, 1000);
+    });
+
+    it("bubbleBench - increaseBubbles() with FieldKind.optional", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("simpleBubbles"), 0), TreeNavigationResult.Ok);
+        const bubbleLength = cursor.length(EmptyKey);
+        assert.equal(bubbleLength, 2); // confirm initial length is 2
+
+        cursor.down(EmptyKey, 0)
+        const bubblesAnchor = cursor.buildAnchor();
+
+        tree.runTransaction((forest, editor) => {
+            const path = tree.locate(bubblesAnchor) ?? fail("anchor should exist");
+            tree.context.prepareForEdit();
+            cursor.free();
+            editor.insert(
+                path,
+                singleTextCursor({
+                    type: iBubbleSchema.name,
+                    fields: {
+                        x: [{ type: int32Schema.name, value: 99 }],
+                        y: [{ type: int32Schema.name, value: 99 }],
+                        r: [{ type: int32Schema.name, value: 99 }],
+                        vx: [{ type: int32Schema.name, value: 99 }],
+                        vy: [{ type: int32Schema.name, value: 99 }],
+                    }
+                }),
+            );
+            return TransactionResult.Apply;
+        });
+        await provider.ensureSynchronized();
+
+        cursor = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("simpleBubbles"), 0), TreeNavigationResult.Ok);
+        const updatedBubbleLength = cursor.length(EmptyKey);
+        assert.equal(updatedBubbleLength, bubbleLength + 1);
+    });
+
+    it("bubbleBench - increaseBubbles() with FieldKind.sequence", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        const bubbleLength = cursor.length(brand("bubbles"));
+        assert.equal(bubbleLength, 2); // confirm initial length is 2
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+        const bubblesAnchor = cursor.buildAnchor();
+
+        tree.runTransaction((forest, editor) => {
+            const path = tree.locate(bubblesAnchor) ?? fail("anchor should exist");
+            tree.context.prepareForEdit();
+            cursor.free();
+            editor.insert(
+                path,
+                singleTextCursor({
+                    type: iBubbleSchema.name,
+                    fields: {
+                        x: [{ type: int32Schema.name, value: 99 }],
+                        y: [{ type: int32Schema.name, value: 99 }],
+                        r: [{ type: int32Schema.name, value: 99 }],
+                        vx: [{ type: int32Schema.name, value: 99 }],
+                        vy: [{ type: int32Schema.name, value: 99 }],
+                    }
+                }),
+            );
+            return TransactionResult.Apply;
+        });
+        await provider.ensureSynchronized();
+
+        cursor = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        const updatedBubbleLength = cursor.length(brand("bubbles"));
+        assert.equal(updatedBubbleLength, bubbleLength + 1);
+    });
+
+    it("bubbleBench - decreaseBubbles() with FieldKind.sequence", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        const bubbleLength = cursor.length(brand("bubbles"));
+        assert.equal(bubbleLength, 2); // confirm initial length is 2
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+        const bubblesAnchor = cursor.buildAnchor();
+
+        tree.runTransaction((forest, editor) => {
+            const path = tree.locate(bubblesAnchor) ?? fail("anchor should exist");
+            tree.context.prepareForEdit();
+            cursor.free();
+            editor.delete(path, bubbleLength - 1); // "popping the last bubble in the array"
+            return TransactionResult.Apply;
+        });
+        await provider.ensureSynchronized();
+
+        cursor = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        const updatedBubbleLength = cursor.length(brand("bubbles"));
+        assert.equal(updatedBubbleLength, bubbleLength - 1);
+    });
+
+    it("bubbleBench - Test Example: navigate to a to a bubble in a Fieldkind.sequence array in local client", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        const cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand('x'), 0), TreeNavigationResult.Ok);
+        const bubble1XVal = cursor.value as number;
+
+        const cursor2 = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor2), TreeNavigationResult.Ok);
+        assert.equal(cursor2.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor2.down(brand("bubbles"), 1), TreeNavigationResult.Ok);
+        assert.equal(cursor2.down(brand("x"), 0), TreeNavigationResult.Ok);
+        const bubble2XVal = cursor2.value as number;
+    });
+
+    it("bubbleBench - Test Example: navigate to a bubble in a Fieldkind.optional array in local client", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        const cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        const cursorResult = tree.forest.tryMoveCursorTo(destination, cursor);
+        assert.equal(cursorResult, TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("simpleBubbles"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(EmptyKey, 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("x"), 0), TreeNavigationResult.Ok);
+        const bubble1XVal = cursor.value as number;
+
+        console.log('hello')
+    });
+
+    it("bubbleBench Bubble - get()", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        const cursorResult = tree.forest.tryMoveCursorTo(destination, cursor);
+        assert.equal(cursorResult, TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+
+        const bubbleAnchor = cursor.buildAnchor();
+        const bubble = new Bubble(tree, bubbleAnchor);
+
+        // Confirm all value retrievals work
+        cursor.down(Bubble.xFieldKey, 0);
+        assert.strictEqual(bubble.x, cursor.value); // confirm the value is whats in the tree
+        cursor.up();
+
+        cursor.down(Bubble.yFieldKey, 0);
+        assert.strictEqual(bubble.y, cursor.value);
+        cursor.up();
+
+        cursor.down(Bubble.rFieldKey, 0);
+        assert.strictEqual(bubble.r, cursor.value);
+        cursor.up();
+
+        cursor.down(Bubble.vxFieldKey, 0);
+        assert.strictEqual(bubble.vx, cursor.value);
+        cursor.up();
+
+        cursor.down(Bubble.vyFieldKey, 0);
+        assert.strictEqual(bubble.vy, cursor.value);
+        cursor.up();
+
+        cursor.free();
+        bubble.x = 99;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.x, 99);
+
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.xFieldKey, 0);
+        assert.strictEqual(bubble.x, cursor.value);
+    });
+
+    it("bubbleBench Bubble - set()", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        const cursorResult = tree.forest.tryMoveCursorTo(destination, cursor);
+        assert.equal(cursorResult, TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+
+        const bubbleAnchor = cursor.buildAnchor();
+        const bubble = new Bubble(tree, bubbleAnchor);
+        cursor.free();
+
+        // test if set() for x, y, vx, vy, r works
+        const updatedXValue = bubble.x + 10;
+        bubble.x = updatedXValue;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.x, updatedXValue);
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.xFieldKey, 0);
+        assert.strictEqual(bubble.x, cursor.value); // confirm the value is whats in the tree
+        cursor.free();
+
+        const updatedYValue = bubble.y + 10;
+        bubble.y = updatedYValue;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.y, updatedYValue);
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.yFieldKey, 0);
+        assert.strictEqual(bubble.y, cursor.value);
+        cursor.free();
+
+        const updatedVxValue = bubble.vx + 10;
+        bubble.vx = updatedVxValue;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.vx, updatedVxValue);
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.vxFieldKey, 0);
+        assert.strictEqual(bubble.vx, cursor.value);
+        cursor.free();
+
+        const updatedVyValue = bubble.vy + 10;
+        bubble.vy = updatedVyValue;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.vy, updatedVyValue);
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.vyFieldKey, 0);
+        assert.strictEqual(bubble.vy, cursor.value);
+        cursor.free();
+
+        const updatedRValue = bubble.r + 10;
+        bubble.r = updatedRValue;
+        await provider.ensureSynchronized();
+        assert.strictEqual(bubble.r, updatedRValue);
+        cursor = tree.forest.allocateCursor();
+        tree.forest.tryMoveCursorTo(bubbleAnchor, cursor);
+        cursor.down(Bubble.rFieldKey, 0);
+        assert.strictEqual(bubble.r, cursor.value);
+        cursor.free();
+    });
+
+    it("bubbleBench Client - get()", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        const cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        const cursorResult = tree.forest.tryMoveCursorTo(destination, cursor);
+        assert.equal(cursorResult, TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+
+        const clientAnchor = cursor.buildAnchor();
+        const client = new Client(tree, clientAnchor);
+
+        // Confirm all value retrievals work
+        cursor.down(Client.clientIdFieldKey, 0);
+        assert.strictEqual(client.clientId, cursor.value); // confirm the value is whats in the tree
+        cursor.up();
+
+        cursor.down(Client.colorFieldKey, 0);
+        assert.strictEqual(client.color, cursor.value);
+        cursor.up();
+
+        assert.equal(cursor.down(brand('bubbles'), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand('x'), 0), TreeNavigationResult.Ok);
+        assert.equal(client.bubbles[0].x, cursor.value);
+        cursor.up();
+        cursor.up();
+
+        assert.equal(cursor.down(brand('bubbles'), 1), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand('x'), 0), TreeNavigationResult.Ok);
+        assert.equal(client.bubbles[1].x, cursor.value);
+        cursor.up();
+        cursor.up();
+        cursor.free();
+    });
+
+
+    async function initializeSharedTree(provider: ITestTreeProvider, tree: ISharedTree,
+        schemaData: SchemaData, data?: JsonableTree): Promise<ISharedTree> {
+        assert(tree.isAttached());
+        tree.storedSchema.update(schemaData);
+        // assert(isEmptyTree(provider.trees[0].root)); Is okay to remove the check?
+        if (data) {
+            tree.runTransaction((forest, editor) => {
+                const writeCursor = singleTextCursor(data);
+                editor.insert(
+                    {
+                        parent: undefined,
+                        parentField: detachedFieldAsKey(forest.rootField),
+                        parentIndex: 0,
+                    },
+                    writeCursor,
+                );
+                return TransactionResult.Apply;
+            });
+        }
+        await provider.ensureSynchronized();
+        return tree;
+    }
+
+    const rootFieldSchema = fieldSchema(FieldKinds.value);
+    const globalFieldSchema = fieldSchema(FieldKinds.value);
+    const rootNodeSchema = namedTreeSchema({
+        name: brand("TestValue"),
+        extraLocalFields: fieldSchema(FieldKinds.sequence),
+        globalFields: [globalFieldKey],
+    });
+    const testSchema: SchemaData = {
+        treeSchema: new Map([[rootNodeSchema.name, rootNodeSchema]]),
+        globalFieldSchema: new Map([
+            [rootFieldKey, rootFieldSchema],
+            [globalFieldKey, globalFieldSchema],
+        ]),
+    };
+
+    /**
+     * Inserts a single node under the root of the tree with the given value.
+     * Use {@link getTestValue} to read the value.
+     */
+    function initializeTestTreeWithValue(tree: ISharedTree, value: TreeValue): void {
+        tree.storedSchema.update(testSchema);
+
         // Apply an edit to the tree which inserts a node with a value
-        provider.trees[0].runTransaction((forest, editor) => {
+        tree.runTransaction((forest, editor) => {
+            const writeCursor = singleTextCursor({ type: brand("TestValue"), value });
             editor.insert(
                 {
                     parent: undefined,
                     parentField: detachedFieldAsKey(forest.rootField),
                     parentIndex: 0,
                 },
-                jsonCursor,
+                writeCursor,
             );
+
             return TransactionResult.Apply;
         });
     }
 
-    // if (json) {
-    //     const jsonCursor = new JsonCursor(json);
-    //     const encodedTree = jsonableTreeFromCursor(jsonCursor);
-    //     const textCursor = singleTextCursor(encodedTree);
-    //     // Apply an edit to the tree which inserts a node with a value
-    //     provider.trees[0].runTransaction((forest, editor) => {
-    //         editor.insert(
-    //             {
-    //                 parent: undefined,
-    //                 parentField: detachedFieldAsKey(forest.rootField),
-    //                 parentIndex: 0,
-    //             },
-    //             textCursor,
-    //         );
-    //         return TransactionResult.Apply;
-    //     });
-    // }
+    /**
+     * Reads a value in a tree set by {@link initializeTestTreeWithValue} if it exists.
+     */
+    function getTestValue({ forest }: ISharedTree): TreeValue | undefined {
+        const readCursor = forest.allocateCursor();
+        const destination = forest.root(forest.rootField);
+        const cursorResult = forest.tryMoveCursorTo(destination, readCursor);
+        if (cursorResult !== TreeNavigationResult.Ok) {
+            return undefined;
+        }
+        const { value } = readCursor;
+        readCursor.free();
+        forest.forgetAnchor(destination);
+        if (cursorResult === TreeNavigationResult.Ok) {
+            return value;
+        }
 
-
-    await provider.ensureSynchronized();
-    return [provider, provider.trees];
-}
-
-const rootFieldSchema = fieldSchema(FieldKinds.value);
-const globalFieldSchema = fieldSchema(FieldKinds.value);
-const rootNodeSchema = namedTreeSchema({
-    name: brand("TestValue"),
-    extraLocalFields: fieldSchema(FieldKinds.sequence),
-    globalFields: [globalFieldKey],
-});
-const testSchema: SchemaData = {
-    treeSchema: new Map([[rootNodeSchema.name, rootNodeSchema]]),
-    globalFieldSchema: new Map([
-        [rootFieldKey, rootFieldSchema],
-        [globalFieldKey, globalFieldSchema],
-    ]),
-};
-
-/**
- * Inserts a single node under the root of the tree with the given value.
- * Use {@link getTestValue} to read the value.
- */
-function initializeTestTreeWithValue(tree: ISharedTree, value: TreeValue): void {
-    tree.storedSchema.update(testSchema);
-
-    // Apply an edit to the tree which inserts a node with a value
-    tree.runTransaction((forest, editor) => {
-        const writeCursor = singleTextCursor({ type: brand("TestValue"), value });
-        editor.insert(
-            {
-                parent: undefined,
-                parentField: detachedFieldAsKey(forest.rootField),
-                parentIndex: 0,
-            },
-            writeCursor,
-        );
-
-        return TransactionResult.Apply;
-    });
-}
-
-/**
- * Reads a value in a tree set by {@link initializeTestTreeWithValue} if it exists.
- */
-function getTestValue({ forest }: ISharedTree): TreeValue | undefined {
-    const readCursor = forest.allocateCursor();
-    const destination = forest.root(forest.rootField);
-    const cursorResult = forest.tryMoveCursorTo(destination, readCursor);
-    if (cursorResult !== TreeNavigationResult.Ok) {
         return undefined;
     }
-    const { value } = readCursor;
-    readCursor.free();
-    forest.forgetAnchor(destination);
-    if (cursorResult === TreeNavigationResult.Ok) {
-        return value;
-    }
-
-    return undefined;
-}
+});
