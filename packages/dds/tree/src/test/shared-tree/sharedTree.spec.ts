@@ -20,7 +20,6 @@ import { TransactionResult } from "../../checkout";
 import { fieldSchema, GlobalFieldKey, namedTreeSchema, SchemaData } from "../../schema-stored";
 import { bubbleBenchAppStateJsonTree, bubbleBenchAppStateSchemaData, iBubbleSchema, int32Schema } from "./bubbleBenchAppStateSchema";
 import { Bubble } from "./bubbleBench/Bubble";
-import { SharedTreeHelper } from "./bubbleBench/SharedTreeNodeHelper";
 import { Client } from "./bubbleBench/Client";
 
 const globalFieldKey: GlobalFieldKey = brand("globalFieldKey");
@@ -421,7 +420,7 @@ describe("SharedTree", () => {
             const path = tree.locate(bubblesAnchor) ?? fail("anchor should exist");
             tree.context.prepareForEdit();
             cursor.free();
-            editor.delete(path, bubbleLength - 1); // "popping the last bubble in the array"
+            editor.delete(path, 1); // "popping the first bubble in the array"
             return TransactionResult.Apply;
         });
         await provider.ensureSynchronized();
@@ -430,7 +429,12 @@ describe("SharedTree", () => {
         assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
         assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
         const updatedBubbleLength = cursor.length(brand("bubbles"));
+        assert.equal(cursor.down(brand("bubbles"), 0), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("x"), 0), TreeNavigationResult.Ok);
+        const remainingBubbleX = cursor.value as number;
         assert.equal(updatedBubbleLength, bubbleLength - 1);
+        assert.equal(remainingBubbleX, 20);
+        cursor.free();
     });
 
     it("bubbleBench - Test Example: navigate to a to a bubble in a Fieldkind.sequence array in local client", async () => {
@@ -604,7 +608,7 @@ describe("SharedTree", () => {
         assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
 
         const clientAnchor = cursor.buildAnchor();
-        const client = new Client(tree, clientAnchor);
+        const client = new Client(tree, clientAnchor, 1920, 1080);
 
         // Confirm all value retrievals work
         cursor.down(Client.clientIdFieldKey, 0);
@@ -629,6 +633,67 @@ describe("SharedTree", () => {
         cursor.free();
     });
 
+    it("bubbleBench Client - bubbleSeqeunceHelper.push()", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+
+        const clientAnchor = cursor.buildAnchor();
+        const client = new Client(tree, clientAnchor, 1920, 1080);
+        const initialBubblesLength = client.bubbles.length;
+        assert.equal(initialBubblesLength, cursor.length(brand('bubbles')));
+        cursor.free();
+        client.increaseBubbles();
+        await provider.ensureSynchronized();
+
+        const updatedBubblesLength = client.bubbles.length;
+        assert.equal(updatedBubblesLength, initialBubblesLength + 1);
+        cursor = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        assert.equal(updatedBubblesLength, cursor.length(brand('bubbles')));
+
+        const newBubble = client.bubbles[client.bubbles.length - 1];
+        const newBubbleXVal = newBubble.x;
+        assert.equal(newBubbleXVal, 99);
+    });
+
+    it("bubbleBench Client - bubbleSeqeunceHelper.pop()", async () => {
+        // Create tree
+        const provider = await TestTreeProvider.create(1);
+        const tree = await initializeSharedTree(provider, provider.trees[0], bubbleBenchAppStateSchemaData, bubbleBenchAppStateJsonTree);
+        // Create cursor and move it to the root node of the tree
+        let cursor = tree.forest.allocateCursor();
+        const destination = tree.forest.root(tree.forest.rootField);
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+
+        const clientAnchor = cursor.buildAnchor();
+        const client = new Client(tree, clientAnchor, 1920, 1080);
+        const initialBubblesLength = client.bubbles.length;
+        assert.equal(initialBubblesLength, cursor.length(brand('bubbles')));
+        cursor.free();
+        client.decreaseBubbles();
+        await provider.ensureSynchronized();
+
+        const updatedBubblesLength = client.bubbles.length;
+        assert.equal(updatedBubblesLength, initialBubblesLength - 1);
+        cursor = tree.forest.allocateCursor();
+        assert.equal(tree.forest.tryMoveCursorTo(destination, cursor), TreeNavigationResult.Ok);
+        assert.equal(cursor.down(brand("localClient"), 0), TreeNavigationResult.Ok);
+        const actalTreeBubblesLength = cursor.length(brand('bubbles'));
+        assert.equal(updatedBubblesLength, actalTreeBubblesLength);
+
+        const remainingBubble = client.bubbles[client.bubbles.length - 1];
+        const remainingBubbleXVal = remainingBubble.x;
+        assert.equal(remainingBubbleXVal, 10);
+    });
 
     async function initializeSharedTree(provider: ITestTreeProvider, tree: ISharedTree,
         schemaData: SchemaData, data?: JsonableTree): Promise<ISharedTree> {

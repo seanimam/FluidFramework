@@ -1,7 +1,7 @@
-import { TreeNavigationResult } from "../../../forest";
 import { ISharedTree } from "../../../shared-tree";
 import { Anchor, FieldKey } from "../../../tree";
 import { brand } from "../../../util";
+import { iBubbleSchema, int32Schema } from "../bubbleBenchAppStateSchema";
 import { Bubble } from "./Bubble";
 import { SharedTreeNodeHelper } from "./SharedTreeNodeHelper";
 import { SharedTreeSequenceHelper } from "./SharedTreeSequenceHelper";
@@ -12,14 +12,18 @@ export class Client {
     static bubblesFieldKey: FieldKey = brand('bubbles');
 
     private readonly treeHelper: SharedTreeNodeHelper;
-    private readonly bubbleSeqeunceHelper: SharedTreeSequenceHelper;
+    readonly bubbleSeqeunceHelper: SharedTreeSequenceHelper;
+    private readonly _bubbles: Bubble[];
 
     constructor(
         public readonly tree: ISharedTree,
-        public readonly anchor: Anchor
+        public readonly anchor: Anchor,
+        private _width: number,
+        private _height: number,
     ) {
         this.treeHelper = new SharedTreeNodeHelper(tree, anchor);
         this.bubbleSeqeunceHelper = new SharedTreeSequenceHelper(tree, anchor, Client.bubblesFieldKey);
+        this._bubbles = this.initializeBubblesArray();
     }
 
     public get clientId() { return this.treeHelper.getFieldValue(Client.clientIdFieldKey) as string }
@@ -28,26 +32,44 @@ export class Client {
     public get color() { return this.treeHelper.getFieldValue(Client.colorFieldKey) as string }
     public set color(value: string) { this.treeHelper.editFieldValue(Client.colorFieldKey, value); }
 
-    public get bubbles() {
-        const resultBubbles: Bubble[] = [];
-        const [cursor, navResult] = this.bubbleSeqeunceHelper.get(0);
-        if (navResult === TreeNavigationResult.NotFound) {
-            cursor.free();
-            return resultBubbles;
-        }
-
-        resultBubbles.push(new Bubble(this.tree, cursor.buildAnchor()));
-
-        let currNavResult: TreeNavigationResult = navResult;
-        while (currNavResult === TreeNavigationResult.Ok) {
-            currNavResult = cursor.seek(1);
-            if (currNavResult === TreeNavigationResult.Ok) {
-                resultBubbles.push(new Bubble(this.tree, cursor.buildAnchor()));
-            }
-        }
-
-        return resultBubbles;
+    public setSize(width?: number, height?: number) {
+        this._width = width ?? 640;
+        this._height = height ?? 480;
     }
 
+    public get bubbles() {
+        return this._bubbles;
+    }
+
+    private initializeBubblesArray() {
+        const [cursor, bubbleAnchors] = this.bubbleSeqeunceHelper.getAll();
+        const bubbles = bubbleAnchors.map(anchor => new Bubble(this.tree, anchor));
+        cursor.free();
+        return bubbles;
+    }
+
+    public increaseBubbles() {
+        // TODO: Replace with makeBubbleMethod using width and height
+        const newBubble = {
+            type: iBubbleSchema.name,
+            fields: {
+                x: [{ type: int32Schema.name, value: 99 }],
+                y: [{ type: int32Schema.name, value: 99 }],
+                r: [{ type: int32Schema.name, value: 99 }],
+                vx: [{ type: int32Schema.name, value: 99 }],
+                vy: [{ type: int32Schema.name, value: 99 }],
+            }
+        };
+
+        this.bubbleSeqeunceHelper.push(newBubble)
+        const newBubs = this.initializeBubblesArray().map(bub => bub.x);
+        const [newBubbleCursor] = this.bubbleSeqeunceHelper.get(this._bubbles.length);
+        this._bubbles.push(new Bubble(this.tree, newBubbleCursor.buildAnchor()));
+    }
+
+    public decreaseBubbles() {
+        this.bubbleSeqeunceHelper.pop();
+        this._bubbles.pop();
+    }
 
 }
