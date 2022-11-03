@@ -103,5 +103,10 @@
     "stats-percentile": "3.1.0",
     "wait-on": "3.2.0",
     "yargs": "13.2.2"
+  },
+  "overrides": {
+    "jsonlint": {
+      "underscore": "^1.12.1"
+    }
   }
 }
