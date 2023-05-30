@@ -18,6 +18,8 @@ import {
 	Option,
 	TableColumnDefinition,
 	createTableColumn,
+	Input,
+	Button,
 } from "@fluentui/react-components";
 import React, { useState, useRef } from "react";
 import SplitPane from "react-split-pane";
@@ -30,6 +32,7 @@ import {
 	TelemetryHistory,
 	TelemetryEvent,
 } from "@fluid-experimental/devtools-core";
+import { JSONPath } from "jsonpath-plus";
 import { useMessageRelay } from "../MessageRelayContext";
 import { Waiting } from "./Waiting";
 
@@ -188,6 +191,8 @@ interface FilteredTelemetryViewProps {
 function FilteredTelemetryView(props: FilteredTelemetryViewProps): React.ReactElement {
 	const { telemetryEvents } = props;
 	const [selectedCategory, setSelectedCategory] = useState("");
+	const [jsonQueryParam, setJsonQueryParam] = useState("");
+	const [enableJsonQueryParam, setEnableJsonQueryParam] = useState(false);
 	const [filteredTelemetryEvents, setFilteredTelemetryEvents] = React.useState<
 		ITimestampedTelemetryEvent[] | undefined
 	>();
@@ -315,18 +320,50 @@ function FilteredTelemetryView(props: FilteredTelemetryViewProps): React.ReactEl
 		category: string;
 		eventName: string;
 		information: string;
+		// eslint-disable-next-line @typescript-eslint/no-explicit-any
+		logContent: any;
 	}
 
-	const items: Item[] =
-		filteredTelemetryEvents !== undefined
-			? filteredTelemetryEvents?.map((message) => {
-					return {
-						category: message.logContent.category,
-						eventName: message.logContent.eventName,
-						information: JSON.stringify(message.logContent, undefined, 2),
-					};
-			  }, [])
-			: [];
+	// const items: Item[] =
+	// 	filteredTelemetryEvents !== undefined
+	// 		? filteredTelemetryEvents?.map((message) => {
+	// 				return {
+	// 					category: message.logContent.category,
+	// 					eventName: message.logContent.eventName,
+	// 					information: JSON.stringify(message.logContent, undefined, 2),
+	// 				};
+	// 		  }, [])
+	// 		: [];
+
+	const getItems = (): Item[] => {
+		const mappedItems: Item[] =
+			filteredTelemetryEvents?.map((message) => {
+				return {
+					category: message.logContent.category,
+					eventName: message.logContent.eventName,
+					information: JSON.stringify(message.logContent, undefined, 2),
+					logContent: message.logContent,
+				};
+			}) ?? [];
+
+		if (enableJsonQueryParam) {
+			console.log("jsonQueryParam:", jsonQueryParam);
+			try {
+				const jsonQueriedItems = JSONPath<Item[]>({
+					path: jsonQueryParam,
+					// path: "$[?(@.logContent.category=='performance' && @.logContent.eventName=='fluid:telemetry:Container:Request_end')]",
+					// path: "$[?(@.logContent.category=='performance')]",
+					// path: "$[?(@.logContent.category=='performance' && @.logContent.clientSequenceNumber=='1')]"
+					json: mappedItems,
+				});
+				console.log("jsonPath Queried Items", jsonQueriedItems);
+				return jsonQueriedItems;
+			} catch (error) {
+				console.warn("bad query:", jsonQueryParam, error);
+			}
+		}
+		return mappedItems;
+	};
 
 	const columns: TableColumnDefinition<Item>[] = [
 		createTableColumn<Item>({
@@ -413,6 +450,14 @@ function FilteredTelemetryView(props: FilteredTelemetryViewProps): React.ReactEl
 	return (
 		<>
 			<h3 style={{ marginLeft: "6px" }}>Telemetry events (newest first):</h3>
+			<h3>Json Query </h3>
+			<Input
+				onChange={(e, data): void => setJsonQueryParam(data.value)}
+				style={{ width: "650px" }}
+			></Input>
+			<Button onClick={(): void => setEnableJsonQueryParam(!enableJsonQueryParam)}>
+				{`Search ${enableJsonQueryParam}`}
+			</Button>
 			<SplitPane
 				split="vertical"
 				minSize={580}
@@ -429,7 +474,7 @@ function FilteredTelemetryView(props: FilteredTelemetryViewProps): React.ReactEl
 				}}
 			>
 				<DataGrid
-					items={items}
+					items={getItems()}
 					columns={columns}
 					resizableColumns
 					selectionMode="single"
