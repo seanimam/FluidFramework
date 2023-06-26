@@ -15,16 +15,20 @@ export function DevtoolsPanel(props: DevtoolsPanelProps): React_2.ReactElement;
 
 // @public
 export interface DevtoolsPanelProps {
-    messageRelay: IMessageRelay;
+    	messageRelay: IMessageRelay;
 }
 
 export { IMessageRelay }
 
 // @internal
-export class WindowMessageRelay extends TypedEventEmitter<IMessageRelayEvents> implements IMessageRelay {
-    constructor(
-    messageSource: string);
-    postMessage(message: IDevtoolsMessage): void;
+export class WindowMessageRelay
+	extends TypedEventEmitter<IMessageRelayEvents>
+	implements IMessageRelay
+    {
+    	constructor(
+    		messageSource: string,
+    	);
+    	postMessage(message: IDevtoolsMessage): void;
 }
 
 ```
