@@ -35,6 +35,16 @@ import {
 import { DefaultPalette } from "@fluentui/react";
 import { useMessageRelay } from "../MessageRelayContext";
 import { Waiting } from "./Waiting";
+import { DynamicComposedChart } from "./graphs";
+
+function epochToTimeString(epoch: number): string {
+	const date = new Date(epoch);
+	const hours = date.getUTCHours().toString().padStart(2, "0");
+	const minutes = date.getUTCMinutes().toString().padStart(2, "0");
+	const seconds = date.getUTCSeconds().toString().padStart(2, "0");
+
+	return `${hours}:${minutes}:${seconds}`;
+}
 
 /**
  * Displays op latency statistics and information.
@@ -48,6 +58,7 @@ export function OpLatencyView(): React.ReactElement {
 	>();
 	const [durationInboundToProcessingDataPoints, setDurationInboundToProcessingDataPoints] =
 		React.useState<ILineChartDataPoint[] | undefined>();
+
 	React.useEffect(() => {
 		/**
 		 * Handlers for inbound messages.
@@ -212,6 +223,17 @@ export function OpLatencyView(): React.ReactElement {
 
 	const chartContainer = React.useRef(null);
 
+	const marshallLineChartDataToOpLatencyGraphData = (
+		graphData: ILineChartDataPoint[],
+	): { [key: string]: number | string }[] => {
+		return graphData.map((datapoint) => {
+			return {
+				x: epochToTimeString(datapoint.x as number),
+				y: datapoint.y,
+			};
+		});
+	};
+
 	return data !== undefined ? (
 		<>
 			<h3>Op Latency</h3>
@@ -224,6 +246,61 @@ export function OpLatencyView(): React.ReactElement {
 					xAxisTickCount={10}
 					// theme={getFluentUIThemeToUse()} // The theming for FluentUI react-charting is not the same as for FluentUI-components
 					// allowMultipleShapesForPoints={this.state.allowMultipleShapes}
+				/>
+			</div>
+			<div style={{ width: "600px", height: "400px" }}>
+				<DynamicComposedChart
+					yAxisUnitDisplayName="ms"
+					dataSets={[
+						{
+							graphType: "line",
+							schema: {
+								displayName: "Duration Outbound",
+								uuid: "durationOutbound",
+								yAxisDataKey: "y",
+								xAxisDataKey: "x",
+							},
+							// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+							// @ts-ignore
+							data: durationOutboundBatchingDataPoints
+								? marshallLineChartDataToOpLatencyGraphData(
+										durationOutboundBatchingDataPoints,
+								  )
+								: [],
+						},
+						{
+							graphType: "line",
+							schema: {
+								displayName: "Duration Inbound",
+								uuid: "durationInbound",
+								yAxisDataKey: "y",
+								xAxisDataKey: "x",
+							},
+							// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+							// @ts-ignore
+							data: durationInboundToProcessingDataPoints
+								? marshallLineChartDataToOpLatencyGraphData(
+										durationInboundToProcessingDataPoints,
+								  )
+								: [],
+						},
+						{
+							graphType: "line",
+							schema: {
+								displayName: "Duration Network",
+								uuid: "durationNetwork",
+								yAxisDataKey: "y",
+								xAxisDataKey: "x",
+							},
+							// eslint-disable-next-line @typescript-eslint/ban-ts-comment
+							// @ts-ignore
+							data: durationNetworkDataPoints
+								? marshallLineChartDataToOpLatencyGraphData(
+										durationNetworkDataPoints,
+								  )
+								: [],
+						},
+					]}
 				/>
 			</div>
 		</>
