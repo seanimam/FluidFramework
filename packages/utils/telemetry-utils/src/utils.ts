@@ -58,15 +58,32 @@ export function createSampledLogger(
 
 	return sampledLogger;
 }
+
+export interface ISampledTelemetryLoggerExt<T> extends ITelemetryLoggerExt {
+	eventSampler: {
+		poll: () => boolean;
+	};
+	eventDataConfig?: {
+		dataStore: Map<string | number, T>;
+		eventUuidAttrName: string;
+		retainData: boolean;
+	};
+}
+
 /**
  * Wraps around an existing logger and applies a provided callback to determine if an event should be sampled.
  */
-export function createSampledLoggerExt(
+export function createSampledLoggerExt<T>(
 	logger: ITelemetryLoggerExt,
 	eventSampler: {
 		poll: () => boolean;
 	},
-) {
+	eventDataConfig?: {
+		dataStore: Map<string | number, T>;
+		eventUuidAttrName: string;
+		retainData: boolean;
+	},
+): ISampledTelemetryLoggerExt<T> {
 	const monitoringContext = loggerToMonitoringContext(logger);
 	const isSamplingDisabled = monitoringContext.config.getBoolean(
 		"Fluid.Telemetry.DisableSampling",
@@ -75,25 +92,62 @@ export function createSampledLoggerExt(
 	const sampledLogger = {
 		send: (event: ITelemetryBaseEvent) => {
 			if (isSamplingDisabled || eventSampler.poll() === true) {
-				logger.send(event);
+				const data =
+					eventDataConfig?.dataStore.get(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					) ?? {};
+				logger.send({ ...event, ...data });
+				if (eventDataConfig?.retainData === false) {
+					eventDataConfig?.dataStore.delete(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					);
+				}
 			}
 		},
 		sendTelemetryEvent: (event: ITelemetryGenericEventExt) => {
 			if (isSamplingDisabled || eventSampler.poll() === true) {
-				logger.sendTelemetryEvent(event);
+				const data =
+					eventDataConfig?.dataStore.get(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					) ?? {};
+				logger.sendTelemetryEvent({ ...event, ...data });
+				if (eventDataConfig?.retainData === false) {
+					eventDataConfig?.dataStore.delete(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					);
+				}
 			}
 		},
 		sendErrorEvent: (event: ITelemetryGenericEventExt) => {
 			if (isSamplingDisabled || eventSampler.poll() === true) {
-				logger.sendErrorEvent(event);
+				const data =
+					eventDataConfig?.dataStore.get(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					) ?? {};
+				logger.sendErrorEvent({ ...event, ...data });
+				if (eventDataConfig?.retainData === false) {
+					eventDataConfig?.dataStore.delete(
+						event[eventDataConfig.eventUuidAttrName] as string | number,
+					);
+				}
 			}
 		},
 		sendPerformanceEvent: (event: ITelemetryGenericEventExt) => {
 			if (isSamplingDisabled || eventSampler.poll() === true) {
-				logger.sendPerformanceEvent(event);
+				const data =
+					eventDataConfig?.dataStore.get(
+						event[eventDataConfig.eventUuidAttrName] as string,
+					) ?? {};
+				logger.sendPerformanceEvent({ ...event, ...data });
+				if (eventDataConfig?.retainData === false) {
+					eventDataConfig?.dataStore.delete(
+						event[eventDataConfig.eventUuidAttrName] as string,
+					);
+				}
 			}
 		},
 		eventSampler,
+		eventDataConfig,
 	};
 	return sampledLogger;
 }

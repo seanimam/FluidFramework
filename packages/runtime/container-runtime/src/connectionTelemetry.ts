@@ -10,6 +10,7 @@ import {
 	createSampledLoggerExt,
 	createSystematicEventSampler,
 	formatTick,
+	ISampledTelemetryLoggerExt,
 } from "@fluidframework/telemetry-utils";
 import { IDeltaManager } from "@fluidframework/container-definitions";
 import {
@@ -61,13 +62,13 @@ class OpPerfTelemetry {
 	private sequenceNumberForMsnTracking: number | undefined;
 	private msnTrackingTimestamp: number = 0;
 	// Performance Data to be reported for ops round trips and processing.
-	private readonly latencyStatistics = new Map<
-		number,
-		{
-			opProcessingTimes: Partial<IOpPerfTimings>;
-			opPerfData: Partial<IOpPerfTelemetryProperties>;
-		}
-	>();
+	// private readonly latencyStatistics = new Map<
+	// 	number,
+	// 	{
+	// 		opProcessingTimes: Partial<IOpPerfTimings>;
+	// 		opPerfData: Partial<IOpPerfTelemetryProperties>;
+	// 	}
+	// >();
 
 	private firstConnection = true;
 	private connectionOpSeqNumber: number | undefined;
@@ -82,7 +83,10 @@ class OpPerfTelemetry {
 	private readonly opLatencyLogger: ITelemetryLoggerExt;
 
 	private static readonly DELTA_LATENCY_SAMPLE_RATE = 100;
-	private readonly deltaLatencyLogger: ITelemetryLoggerExt;
+	private readonly deltaLatencyLogger: ISampledTelemetryLoggerExt<{
+		opProcessingTimes: Partial<IOpPerfTimings>;
+		opPerfData: Partial<IOpPerfTelemetryProperties>;
+	}>;
 
 	public constructor(
 		private clientId: string | undefined,
@@ -96,12 +100,20 @@ class OpPerfTelemetry {
 		});
 		this.opLatencyLogger = createSampledLoggerExt(logger, this.opLatencyLoggerEventSampler);
 
-		this.deltaLatencyLogger = createSampledLoggerExt(
+		this.deltaLatencyLogger = createSampledLoggerExt<{
+			opProcessingTimes: Partial<IOpPerfTimings>;
+			opPerfData: Partial<IOpPerfTelemetryProperties>;
+		}>(
 			logger,
 			createSystematicEventSampler({
 				samplingRate: OpPerfTelemetry.DELTA_LATENCY_SAMPLE_RATE,
 				autoIncrementCounter: true,
 			}),
+			{
+				dataStore: new Map(),
+				eventUuidAttrName: "clientSequenceNumber",
+				retainData: false,
+			},
 		);
 
 		this.deltaManager.on("pong", (latency) => this.recordPingTime(latency));
@@ -126,7 +138,8 @@ class OpPerfTelemetry {
 			this.sequenceNumberForMsnTracking = undefined;
 			this.connectionOpSeqNumber = undefined;
 			this.firstConnection = false;
-			this.latencyStatistics.clear();
+			// this.latencyStatistics.clear();
+			this.deltaLatencyLogger.eventDataConfig?.dataStore.clear();
 		});
 
 		this.deltaManager.outbound.on("push", (messages) => {
@@ -136,7 +149,11 @@ class OpPerfTelemetry {
 					this.opLatencyLoggerEventSampler.willSample(msg.clientSequenceNumber)
 				) {
 					// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
-					const latencyStats = this.latencyStatistics.get(msg.clientSequenceNumber)!;
+					const latencyStats = this.deltaLatencyLogger.eventDataConfig!.dataStore.get(
+						msg.clientSequenceNumber,
+					)!;
+
+					// const latencyStats = this.latencyStatistics.get(msg.clientSequenceNumber)!;
 
 					assert(
 						latencyStats.opProcessingTimes.outboundPushEventTime === undefined,
@@ -171,7 +188,11 @@ class OpPerfTelemetry {
 				message.type === MessageType.Operation &&
 				this.opLatencyLoggerEventSampler.willSample(message.clientSequenceNumber)
 			) {
-				const latencyStats = this.latencyStatistics.get(message.clientSequenceNumber);
+				// const latencyStats = this.latencyStatistics.get(message.clientSequenceNumber);
+				// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+				const latencyStats = this.deltaLatencyLogger.eventDataConfig!.dataStore.get(
+					message.clientSequenceNumber,
+				)!;
 				assert(latencyStats !== undefined, "Latency stats for op should exist");
 				if (latencyStats.opProcessingTimes.outboundPushEventTime !== undefined) {
 					latencyStats.opProcessingTimes.inboundPushEventTime = Date.now();
@@ -237,16 +258,28 @@ class OpPerfTelemetry {
 	private beforeOpSubmit(message: IDocumentMessage) {
 		// start with first client op and measure latency every 500 client ops
 		if (this.opLatencyLoggerEventSampler.willSample(message.clientSequenceNumber)) {
-			assert(
-				this.latencyStatistics.get(message.clientSequenceNumber) === undefined,
-				"Existing op perf data for client sequence number",
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			const latencyStats = this.deltaLatencyLogger.eventDataConfig!.dataStore.get(
+				message.clientSequenceNumber,
 			);
-			this.latencyStatistics.set(message.clientSequenceNumber, {
+			// assert(
+			// 	this.latencyStatistics.get(message.clientSequenceNumber) === undefined,
+			// 	"Existing op perf data for client sequence number",
+			// );
+			assert(latencyStats === undefined, "Existing op perf data for client sequence number");
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			this.deltaLatencyLogger.eventDataConfig!.dataStore.set(message.clientSequenceNumber, {
 				opProcessingTimes: {
 					submitOpEventTime: Date.now(),
 				},
 				opPerfData: {},
 			});
+			// latencyStats.set(message.clientSequenceNumber, {
+			// 	opProcessingTimes: {
+			// 		submitOpEventTime: Date.now(),
+			// 	},
+			// 	opPerfData: {},
+			// });
 			this.opLatencyLoggerEventSampler.state.eventCount = message.clientSequenceNumber;
 		}
 	}
@@ -284,7 +317,13 @@ class OpPerfTelemetry {
 			this.clientId === message.clientId &&
 			this.opLatencyLoggerEventSampler.willSample(message.clientSequenceNumber)
 		) {
-			const latencyData = this.latencyStatistics.get(message.clientSequenceNumber);
+			// const latencyData = this.latencyStatistics.get(message.clientSequenceNumber);
+
+			// eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+			const latencyData = this.deltaLatencyLogger.eventDataConfig!.dataStore.get(
+				message.clientSequenceNumber,
+			)!;
+
 			assert(latencyData !== undefined, "Undefined latency statistics for op");
 			assert(
 				latencyData.opProcessingTimes.submitOpEventTime !== undefined,
@@ -317,7 +356,7 @@ class OpPerfTelemetry {
 					this.deltaManager.lastSequenceNumber - this.deltaManager.minimumSequenceNumber,
 				...latencyData.opPerfData,
 			});
-			this.latencyStatistics.delete(message.clientSequenceNumber);
+			// this.latencyStatistics.delete(message.clientSequenceNumber);
 		}
 	}
 }

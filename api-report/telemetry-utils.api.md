@@ -46,17 +46,13 @@ export function createMultiSinkLogger(props: {
 }): ITelemetryLoggerExt;
 
 // @public
-export function createSampledLoggerExt(logger: ITelemetryLoggerExt, eventSampler: {
+export function createSampledLoggerExt<T>(logger: ITelemetryLoggerExt, eventSampler: {
     poll: () => boolean;
-}): {
-    send: (event: ITelemetryBaseEvent) => void;
-    sendTelemetryEvent: (event: ITelemetryGenericEventExt) => void;
-    sendErrorEvent: (event: ITelemetryGenericEventExt) => void;
-    sendPerformanceEvent: (event: ITelemetryGenericEventExt) => void;
-    eventSampler: {
-        poll: () => boolean;
-    };
-};
+}, eventDataConfig?: {
+    dataStore: Map<string | number, T>;
+    eventUuidAttrName: string;
+    retainData: boolean;
+}): ISampledTelemetryLoggerExt<T>;
 
 // @public
 export const createSystematicEventSampler: (options: {
@@ -150,6 +146,20 @@ export interface IPerformanceEventMarkers {
     end?: true;
     // (undocumented)
     start?: true;
+}
+
+// @public (undocumented)
+export interface ISampledTelemetryLoggerExt<T> extends ITelemetryLoggerExt {
+    // (undocumented)
+    eventDataConfig?: {
+        dataStore: Map<string | number, T>;
+        eventUuidAttrName: string;
+        retainData: boolean;
+    };
+    // (undocumented)
+    eventSampler: {
+        poll: () => boolean;
+    };
 }
 
 // @public

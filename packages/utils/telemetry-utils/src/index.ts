@@ -65,6 +65,7 @@ export {
 	createSampledLoggerExt,
 	createSystematicEventSampler,
 	SystematicEventSampler,
+	ISampledTelemetryLoggerExt,
 } from "./utils";
 export {
 	TelemetryEventPropertyTypeExt,
