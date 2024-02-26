@@ -25,100 +25,6 @@ export function create(tenantManager: ITenantManager): Router {
  * The git commit hash is effectively the UUID for a given summary.
  */
 function addGetSummaryRoute(router: Router, tenantManager: ITenantManager) {
-	// router.get("/:tenantId/:documentId", (request, response) => {
-	// 	console.log("received summary get request");
-	// 	const documentId = getParam(request.params, "documentId");
-	// 	const tenantId = getParam(request.params, "tenantId");
-
-	// 	const tenantManagerP = tenantManager.getTenant(tenantId, documentId);
-
-	// 	tenantManagerP
-	// 		.then((tenant) => {
-	// 			if (tenant) {
-	// 				console.log("obtained tenant", tenant);
-	// 			}
-
-	// 			const summaryReader = new SummaryReader(
-	// 				tenantId,
-	// 				documentId,
-	// 				tenant.gitManager,
-	// 				false,
-	// 			);
-	// 			console.log("created summaryReader", tenant);
-	// 			const latestSummaryP = summaryReader.readLastSummary();
-
-	// 			latestSummaryP
-	// 				.then((summary) => {
-	// 					if (summary) {
-	// 						console.log("obtained summary");
-
-	// 						if (summary?.scribe) {
-	// 							const scribeMsgContent = JSON.parse(summary.scribe);
-	// 							const validParentSummaries = scribeMsgContent.validParentSummaries;
-	// 							if (validParentSummaries && validParentSummaries.length > 0) {
-	// 								console.log(
-	// 									"last valid parent summary hash:",
-	// 									validParentSummaries[0],
-	// 								);
-	// 							}
-
-	// 							const commitsP = tenant.gitManager.getCommits(documentId, 1);
-	// 							commitsP
-	// 								.then((resp) => {
-	// 									console.log(
-	// 										"obtained following data using doc id as commit",
-	// 										resp,
-	// 									);
-
-	// 									if (resp) {
-	// 										const treeHash = resp[0].commit?.tree?.sha;
-	// 										console.log(`tree hash is ${treeHash}`);
-
-	// 										const fullTreeP = tenant.gitManager.getTree(
-	// 											treeHash,
-	// 											true,
-	// 										);
-
-	// 										fullTreeP
-	// 											.then((resp2) => {
-	// 												console.log("obtained full tree: ", resp2);
-	// 											})
-	// 											.catch((error) => {
-	// 												response.status(400).json(error);
-	// 											});
-	// 									}
-	// 								})
-	// 								.catch((error) => {
-	// 									response.status(400).json(error);
-	// 								});
-	// 						}
-	// 					} else {
-	// 						console.log("no summary found!", summary);
-	// 					}
-	// 					response.status(200).json(summary);
-	// 				})
-	// 				.catch((error) => {
-	// 					response.status(400).json(error);
-	// 				});
-	// 		})
-	// 		.catch((error) => {
-	// 			response.status(400).json(error);
-	// 		});
-
-	// 	// tenantManager
-	// 	// 	.getTenant(getParam(request.params, "tenantId"), getParam(request.params, "documentId"))
-	// 	// 	.then(async (tenant) => {
-	// 	// 		const summary = await tenant.gitManager.getSummary(
-	// 	// 			getParam(request.params, "gitCommitHash"),
-	// 	// 		);
-	// 	// 		response.status(200).json(summary);
-	// 	// 	})
-	// 	// 	.catch((error) => {
-	// 	// 		response.status(400).json(error);
-	// 	// 	});
-	// });
-
-	// cleaned up version
 	router.get("/:tenantId/:documentId", (request, response) => {
 		console.log("received summary get request");
 		const documentId = getParam(request.params, "documentId");
@@ -150,17 +56,17 @@ function addGetSummaryRoute(router: Router, tenantManager: ITenantManager) {
 						if (pathParts.length > 3) {
 							// the channel id exists within item.path and I think its like the uuid name for a folder in git for a given dds
 							ddsCommitChannelId = pathParts[3];
-							if (!ddsData[ddsCommitChannelId]) {
-								ddsData[ddsCommitChannelId] = {};
-							}
 						} else {
 							console.error(
 								"Unable to identify which dds data belongs to due to missing channel id:",
 								item,
 							);
 						}
+						if (!ddsData[ddsCommitChannelId]) {
+							ddsData[ddsCommitChannelId] = {};
+						}
 
-						// 2. Decode blob contents
+						// 2. Decode git commit blob contents
 						const gitChannelData = await tenant.gitManager.getBlob(item.sha);
 						const decodedCommitContents = atob(gitChannelData.content);
 
@@ -190,27 +96,6 @@ function addGetSummaryRoute(router: Router, tenantManager: ITenantManager) {
 				response.status(400).json(error);
 			});
 	});
-
-	// router.get("/v2/:tenantId/:documentId", (request, response) => {
-	// 	console.log("received v2 summary get request");
-	// 	const documentId = getParam(request.params, "documentId");
-	// 	const tenantId = getParam(request.params, "tenantId");
-
-	// 	tenantManager
-	// 		.getTenant(tenantId, documentId)
-	// 		.then(async (tenant) => {
-	// 			console.log("successfully retrieved tenant");
-	// 			const existingRef = await tenant.gitManager.getRef(encodeURIComponent(documentId));
-	// 			if (existingRef) {
-	// 				const commitHash = existingRef.object.sha;
-	// 				const summary = await tenant.gitManager.getSummary(commitHash);
-	// 				response.status(200).json(summary);
-	// 			}
-	// 		})
-	// 		.catch((error) => {
-	// 			response.status(400).json(error);
-	// 		});
-	// });
 
 	return router;
 }

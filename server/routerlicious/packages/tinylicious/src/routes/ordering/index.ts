@@ -40,10 +40,6 @@ export function create(
 	router.use("/documents", documentsRoute);
 	router.use("/summaries", summariesRoute);
 
-	// Add a route here for /summary, we'll need this method to take the TenantManager as an arg.
-	// Using the tenant manager, we can get access to Historian and GitManager which we can utilize to get the actually summary
-	// The logic of which we will neatly put under a REST route, hopefully tenantManager.historian.getSummary will work..
-
 	/**
 	 * Passes on content to all clients in a collaboration session happening on the document via means of signal.
 	 */
