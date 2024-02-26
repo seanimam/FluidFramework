@@ -37,7 +37,7 @@ export function create(tenantManager: ITenantManager): Router {
 }
 
 /**
- * Typed returned by the getSummary route
+ * Object returned by the getSummary route
  */
 export interface GetSummaryApiResponse {
 	/**
