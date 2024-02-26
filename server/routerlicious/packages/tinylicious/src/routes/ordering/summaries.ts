@@ -59,6 +59,9 @@ export interface GetSummaryApiResponse {
 	 *
 	 */
 	gitCommit: ICommitDetails;
+	/**
+	 * Summaries of the content and attributes of each dds within the document.
+	 */
 	ddsSummaries: {
 		/**
 		 * Serialized form of {@link IChannelAttributes} which contains metadata about the DDS such as what type of dds it is.
