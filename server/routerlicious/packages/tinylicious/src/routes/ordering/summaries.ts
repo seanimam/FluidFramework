@@ -59,7 +59,7 @@ export interface GetSummaryApiResponse {
 	 *
 	 */
 	gitCommit: ICommitDetails;
-	ddsData: {
+	ddsSummaries: {
 		/**
 		 * Serialized form of {@link IChannelAttributes} which contains metadata about the DDS such as what type of dds it is.
 		 *
@@ -74,9 +74,9 @@ export interface GetSummaryApiResponse {
 		 */
 		attributes: string;
 		/**
-		 * Serialized json of what the data within the DDS actually is.
+		 * Serialized json of a summary of what the contents/data within the DDS are.
 		 */
-		content: string;
+		contents: string;
 	}[];
 }
 
@@ -95,10 +95,7 @@ async function getSummaryApiHandler(
 	const fullTree = await tenant.gitManager.getTree(treeHash, true);
 	console.log("obtained full tree: ", fullTree);
 
-	const ddsContentMap = new Map<
-		string,
-		{ content: string | undefined; attributes: string | undefined }
-	>();
+	const ddsSummaryMap = new Map<string, { content?: string; attributes?: string }>();
 	for (const item of fullTree.tree) {
 		if (item.path.startsWith(".channels") && item.type === "blob") {
 			if (item.path.endsWith(".component")) {
@@ -118,8 +115,8 @@ async function getSummaryApiHandler(
 					item,
 				);
 			}
-			if (!ddsContentMap.has(ddsCommitChannelId)) {
-				ddsContentMap.set(ddsCommitChannelId, {
+			if (!ddsSummaryMap.has(ddsCommitChannelId)) {
+				ddsSummaryMap.set(ddsCommitChannelId, {
 					content: undefined,
 					attributes: undefined,
 				});
@@ -133,12 +130,12 @@ async function getSummaryApiHandler(
 			if (item.path.endsWith("header")) {
 				// This is the actual content in the DDS
 				if (ddsCommitChannelId) {
-					ddsContentMap.get(ddsCommitChannelId).content = decodedCommitContents;
+					ddsSummaryMap.get(ddsCommitChannelId).content = decodedCommitContents;
 				}
 			} else if (item.path.endsWith(".attributes")) {
 				// This is the metadata about the DDS
 				if (ddsCommitChannelId) {
-					ddsContentMap.get(ddsCommitChannelId).attributes = decodedCommitContents;
+					ddsSummaryMap.get(ddsCommitChannelId).attributes = decodedCommitContents;
 				}
 			}
 		}
@@ -146,14 +143,15 @@ async function getSummaryApiHandler(
 
 	const apiResponse: GetSummaryApiResponse = {
 		gitCommit: commits[0],
-		ddsData: [],
+		ddsSummaries: [],
 	};
 
-	for (const ddsContent of Object.values(ddsContentMap)) {
-		apiResponse.ddsData.push({
-			attributes: ddsContent.attributes,
-			content: ddsContent.content,
+	for (const ddsSummary of ddsSummaryMap.values()) {
+		apiResponse.ddsSummaries.push({
+			attributes: ddsSummary.attributes,
+			contents: ddsSummary.content,
 		});
 	}
+
 	return apiResponse;
 }
