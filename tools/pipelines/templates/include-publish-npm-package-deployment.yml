@@ -53,7 +53,7 @@ jobs:
     inputs:
       SourceFolder: $(System.DefaultWorkingDirectory)
       Contents: '**/*'
-      TargetFolder: $(Build.ArtifactStagingDirectory)
+      TargetFolder: $(parameters.ArtifactStagingDirectory)
   # Publish the artifact containing the required files from the repository
   # Alternatively, you can use an `output`
   - task: 1ES.PublishPipelineArtifact@1
@@ -80,6 +80,7 @@ jobs:
         # Download the artifact from the build job
       - input: pipelineArtifact
         artifactName: pack
+        targetPath: ${{ parameters.buildDirectory }}
   strategy:
     runOnce:
         deploy:
